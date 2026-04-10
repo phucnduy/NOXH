@@ -52,6 +52,7 @@ jobs:
           EMAIL_TO:          ${{ secrets.EMAIL_TO }}
           FORCE_EMAIL:       ${{ github.event.inputs.force_email || 'false' }}
           DRY_RUN:           ${{ github.event.inputs.dry_run || 'false' }}
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
         run: |
           python scan.py
 
