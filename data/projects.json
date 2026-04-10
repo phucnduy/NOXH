@@ -1,1 +1,76 @@
-{"projects":[],"scans":[],"updated":""}
+{
+  "projects": [
+    {
+      "ten_du_an": "VSIP Bắc Ninh NOXH-B2 và NOXH-B4",
+      "ten_thuong_mai": "Belhomes Sky",
+      "tinh_tp": "Bac Ninh",
+      "quan_huyen": "Từ Sơn, Đại Đồng",
+      "vi_tri": "Lô NOXH-B2 (xã Đại Đồng), NOXH-B4 (phường Từ Sơn và xã Đại Đồng)",
+      "chu_dau_tu": "Công ty TNHH VSIP Bắc Ninh",
+      "tong_can": "547",
+      "can_ban": "547",
+      "gia_ban_m2": "19,4 triệu",
+      "gia_can_tu": "~1 tỷ",
+      "khoi_cong": "Khởi công trong năm 2025",
+      "nhan_ho_so_tu": "04/5/2026",
+      "nhan_ho_so_den": "04/6/2026",
+      "du_kien_ban_giao": "Q1/2027",
+      "website_chu_dau_tu": "https://www.vsipbacninh.com",
+      "trang_thai": "Dang thi cong",
+      "nguon": "Cafef.vn - 01/02/2026",
+      "url_nguon": "https://cafef.vn/ong-lon-vsip-sap-mo-ban-hon-500-can-nha-o-xa-hoi-tai-bac-ninh-gia-tu-19-trieu-dong-m-188260201145423797.chn",
+      "ghi_chu": "Dự án gồm 2 lô NOXH-B2 (8.100m2, 2 tòa cao 15 tầng) và NOXH-B4 (2.200m2, 1 tòa cao 10 tầng)"
+    },
+    {
+      "ten_du_an": "NOXH Tân Lập",
+      "ten_thuong_mai": "NOXH Tân Lập Ô Diên",
+      "tinh_tp": "Ha Noi",
+      "quan_huyen": "Ô Diên",
+      "vi_tri": "Xã Ô Diên, Hà Nội",
+      "chu_dau_tu": "Công ty CP Đầu tư phát triển Ngôi sao Châu Á",
+      "tong_can": "459",
+      "can_ban": "321",
+      "gia_ban_m2": "29",
+      "gia_can_tu": "~1,2 tỷ",
+      "khoi_cong": "Đã khởi công",
+      "nhan_ho_so_tu": "01/5/2026",
+      "nhan_ho_so_den": "15/5/2026",
+      "du_kien_ban_giao": "Q4/2027",
+      "website_chu_dau_tu": "Chưa cập nhật",
+      "trang_thai": "Dang thi cong",
+      "nguon": "VnExpress + Tiền Phong - 2026",
+      "url_nguon": "https://vnexpress.net/hung-yen-co-nha-o-xa-hoi-moi-gan-26-trieu-dong-mot-m2-4958942.html",
+      "ghi_chu": "1 tòa cao 21 tầng + 2 tầng hầm, 70% bán, 20% cho thuê, 10% thuê mua"
+    },
+    {
+      "ten_du_an": "NOXH Phố Nối House",
+      "ten_thuong_mai": "Phố Nối House",
+      "tinh_tp": "Hung Yen",
+      "quan_huyen": "Phố Nối",
+      "vi_tri": "Xã Nguyễn Văn Linh, phường Phố Nối, Hưng Yên",
+      "chu_dau_tu": "Công ty CP Du lịch - Thương mại Tân Sáng",
+      "tong_can": "1076",
+      "can_ban": "752",
+      "gia_ban_m2": "20,8-25,8",
+      "gia_can_tu": "~1,5 tỷ",
+      "khoi_cong": "Khởi công tháng 4/2025",
+      "nhan_ho_so_tu": "2026",
+      "nhan_ho_so_den": "2026",
+      "du_kien_ban_giao": "10/2026",
+      "website_chu_dau_tu": "Chưa cập nhật",
+      "trang_thai": "Dang thi cong",
+      "nguon": "VnExpress - 03/11/2025",
+      "url_nguon": "https://vnexpress.net/hung-yen-co-nha-o-xa-hoi-moi-gan-26-trieu-dong-mot-m2-4958942.html",
+      "ghi_chu": "4 tòa cao 9 tầng + 1 tum, giá từ 20,8-25,8 triệu/m2"
+    }
+  ],
+  "scans": [
+    {
+      "ts": "10/04/2026 02:07",
+      "found": 3,
+      "new": 3,
+      "total": 3
+    }
+  ],
+  "updated": "2026-04-10T02:07:50.049136"
+}
