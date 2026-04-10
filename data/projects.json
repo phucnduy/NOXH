@@ -62,6 +62,56 @@
       "nguon": "VnExpress - 03/11/2025",
       "url_nguon": "https://vnexpress.net/hung-yen-co-nha-o-xa-hoi-moi-gan-26-trieu-dong-mot-m2-4958942.html",
       "ghi_chu": "4 tòa cao 9 tầng + 1 tum, giá từ 20,8-25,8 triệu/m2"
+    },
+    {
+      "ten_du_an": "Khu nhà ở Ecohome 3 - Nhà ở xã hội N05",
+      "ten_thuong_mai": "Ecohome 3",
+      "tinh_tp": "Hà Nội",
+      "quan_huyen": "Bắc Từ Liêm",
+      "vi_tri": "Ô đất ký hiệu B11-HH2 Khu Bắc Cổ Nhuế - Chèm, phường Đông Ngạc",
+      "chu_dau_tu": "Công ty cổ phần đầu tư Bất động sản Bắc 9",
+      "so_toa": "",
+      "tong_can": "",
+      "can_ban": "",
+      "dien_tich_can": "",
+      "gia_ban_m2": "",
+      "gia_can_tu": "",
+      "khoi_cong": "",
+      "nhan_ho_so_tu": "",
+      "nhan_ho_so_den": "",
+      "du_kien_ban_giao": "",
+      "doi_tuong_uu_tien": "",
+      "dia_diem_nop_ho_so": "",
+      "website_chu_dau_tu": "",
+      "trang_thai": "Đang nhận HS",
+      "nguon": "Sở Xây dựng Hà Nội",
+      "url_nguon": "https://soxaydung.hanoi.gov.vn/vi-vn/tin/tiep-nhan-ho-so-ban--cho-thue-dot-03--nha-o-xa-hoi-n05-thuoc-du-an-khu-nha-o--ecohome-3/536304-227898-931626",
+      "ghi_chu": "Đợt 03"
+    },
+    {
+      "ten_du_an": "Khu nhà ở xã hội Phú Lãm",
+      "ten_thuong_mai": "",
+      "tinh_tp": "Hà Nội",
+      "quan_huyen": "Hà Đông",
+      "vi_tri": "Điểm công nghiệp sạch Phú Lãm, phường Phú Lãm, quận Hà Đông",
+      "chu_dau_tu": "Công ty Cổ phần Đầu tư Hải Phát",
+      "so_toa": "5 tòa (CT01, CT02, CT03, CT04, CT05)",
+      "tong_can": "",
+      "can_ban": "",
+      "dien_tich_can": "",
+      "gia_ban_m2": "",
+      "gia_can_tu": "",
+      "khoi_cong": "",
+      "nhan_ho_so_tu": "",
+      "nhan_ho_so_den": "",
+      "du_kien_ban_giao": "",
+      "doi_tuong_uu_tien": "",
+      "dia_diem_nop_ho_so": "",
+      "website_chu_dau_tu": "",
+      "trang_thai": "Đang nhận HS",
+      "nguon": "Sở Xây dựng Hà Nội",
+      "url_nguon": "https://soxaydung.hanoi.gov.vn/vi-vn/tin/ke-hoach-tiep-nhan-ho-so-dang-ky-mua-nha-o-xa-hoi-can-thue-chuyen-ban-tai-du-an-khu-nha-o-xa-hoi-phu-lam--phuong-phu-lam--quan-ha-dong-sau-05-nam-/536304-227898-428781",
+      "ghi_chu": "Mỗi tòa gồm 18 tầng, 01 tầng hầm. Đợt 1 nhận hồ sơ"
     }
   ],
   "scans": [
@@ -70,7 +120,17 @@
       "found": 3,
       "new": 3,
       "total": 3
+    },
+    {
+      "ts": "10/04/2026 02:21",
+      "type": "deep_scan",
+      "queries": 8,
+      "found": 2,
+      "deduped": 2,
+      "new": 2,
+      "updated_fields": 0,
+      "total": 5
     }
   ],
-  "updated": "2026-04-10T02:07:50.049136"
+  "updated": "2026-04-10T02:25:58.827860"
 }
