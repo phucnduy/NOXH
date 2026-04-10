@@ -62,6 +62,7 @@ jobs:
           git config user.name  "NOXH Monitor Bot"
           git config user.email "noxh-bot@github-actions"
           git add data/ docs/
-          # Chỉ commit nếu có thay đổi
-          git diff --staged --quiet || git commit -m "chore: cập nhật NOXH $(date +'%d/%m/%Y %H:%M') [skip ci]"
+          git diff --staged --quiet && echo "No changes" && exit 0
+          git commit -m "chore: cập nhật NOXH $(date +'%d/%m/%Y %H:%M') [skip ci]"
+          git pull --rebase origin main
           git push
