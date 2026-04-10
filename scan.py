@@ -47,23 +47,31 @@ def dedup(existing, new_list):
 
 def build_prompt():
     nm = (datetime.now().replace(day=1)+timedelta(days=32)).strftime("%m/%Y")
-    return f"""Tìm thông tin mới nhất về dự án nhà ở xã hội (NOXH) tại {', '.join(REGIONS)} chuẩn bị khởi công hoặc mở bán tháng {nm} hoặc sắp tới 2026.
-Nguồn: soxaydung.hanoi.gov.vn, sxd.bacninh.gov.vn, sxd.hungyen.gov.vn, cafef.vn, vnexpress.net, tienphong.vn, baoxaydung.vn, laodong.vn.
-Chỉ trả JSON array hợp lệ (không text khác):
-[{{"ten_du_an":"","ten_thuong_mai":"","tinh_tp":"Hà Nội|Bắc Ninh|Hưng Yên","quan_huyen":"","vi_tri":"","chu_dau_tu":"","so_toa":"","tong_can":"","can_ban":"","dien_tich_can":"","gia_ban_m2":"","gia_can_tu":"","khoi_cong":"","nhan_ho_so_tu":"","nhan_ho_so_den":"","du_kien_ban_giao":"","doi_tuong_uu_tien":"","dia_diem_nop_ho_so":"","website_chu_dau_tu":"","trang_thai":"Đang nhận HS|Sắp nhận HS|Vừa khởi công|Đang thi công","nguon":"tên báo + ngày","url_nguon":"","ghi_chu":""}}]
-Chỉ dự án có thông tin cụ thể/chính xác. Không có thì trả: []"""
+    regions = ", ".join(REGIONS)
+    prompt = "Tim kiem thong tin moi nhat ve du an nha o xa hoi (NOXH) tai "
+    prompt += regions + " chuan bi khoi cong hoac mo ban thang " + nm + " hoac sap toi 2026.\n"
+    prompt += "Nguon: soxaydung.hanoi.gov.vn, sxd.bacninh.gov.vn, sxd.hungyen.gov.vn, cafef.vn, vnexpress.net, tienphong.vn, baoxaydung.vn.\n"
+    prompt += 'Chi tra JSON array hop le (khong text khac):\n'
+    prompt += '[{"ten_du_an":"","ten_thuong_mai":"","tinh_tp":"Ha Noi|Bac Ninh|Hung Yen","quan_huyen":"","vi_tri":"","chu_dau_tu":"","tong_can":"","can_ban":"","gia_ban_m2":"","gia_can_tu":"","khoi_cong":"","nhan_ho_so_tu":"","nhan_ho_so_den":"","du_kien_ban_giao":"","website_chu_dau_tu":"","trang_thai":"Dang nhan HS|Sap nhan HS|Vua khoi cong|Dang thi cong","nguon":"ten bao + ngay","url_nguon":"","ghi_chu":""}]\n'
+    prompt += "Chi du an co thong tin cu the. Khong co thi tra: []"
+    return prompt
 
 def run_scan():
     api_key = cfg("ANTHROPIC_API_KEY")
-    if not api_key: raise ValueError("Thiếu ANTHROPIC_API_KEY")
+    if not api_key:
+        raise ValueError("Thieu ANTHROPIC_API_KEY")
     client = anthropic.Anthropic(api_key=api_key)
-    log.info("Gọi Claude API + web_search...")
+    log.info("Goi Claude API + web_search...")
+    prompt_text = build_prompt()
+    log.info(f"Prompt length: {len(prompt_text)} chars")
     msg = client.messages.create(
         model="claude-haiku-4-5-20251001",
-        tools=[{"type":"web_search_20250305","name":"web_search"}],
-        messages=[{"role":"user","content":build_prompt()}])
-    full = "".join(b.text for b in msg.content if b.type=="text")
-    log.info(f"Response: {len(full)} ký tự")
+        max_tokens=4000,
+        tools=[{"type": "web_search_20250305", "name": "web_search"}],
+        messages=[{"role": "user", "content": prompt_text}],
+    )
+    full = "".join(b.text for b in msg.content if b.type == "text")
+    log.info(f"Response: {len(full)} ky tu")
     for pat in [r'\[\s*\{[\s\S]*?\}\s*\]', r'\[\s*\]']:
         m = re.search(pat, full)
         if m:
@@ -71,8 +79,10 @@ def run_scan():
                 data = json.loads(m.group())
                 log.info(f"Parse OK: {len(data)} DA")
                 return data
-            except: pass
-    log.warning("Không parse được JSON"); return []
+            except Exception:
+                pass
+    log.warning("Khong parse duoc JSON")
+    return []
 
 NAV,GOLD,GRN="#0B2545","#C9932A","#1A6B3A"
 
