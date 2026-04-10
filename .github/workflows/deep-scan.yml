@@ -1,0 +1,42 @@
+name: NOXH Deep Scan – Quét chuyên sâu Hà Nội
+
+on:
+  # Chỉ chạy thủ công
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deep-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30   # Deep scan cần nhiều thời gian hơn
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install anthropic
+
+      - name: Run deep scan
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+        run: python scan_deep.py
+
+      - name: Commit results
+        run: |
+          git config user.name  "NOXH Monitor Bot"
+          git config user.email "noxh-bot@github-actions"
+          git add data/ docs/
+          git diff --staged --quiet && echo "No changes" && exit 0
+          git commit -m "feat: deep scan Hà Nội $(date +'%d/%m/%Y %H:%M') [skip ci]"
+          git pull --rebase origin main
+          git push
