@@ -229,6 +229,24 @@ def run_query(client, query_config, delay=3):
         log.info(f"  [{qid}] → {len(results)} dự án")
         return results
     except Exception as e:
+        err_msg = str(e)
+        if "429" in err_msg or "rate_limit" in err_msg:
+            log.warning(f"  [{qid}] Rate limit, chờ 90s rồi thử lại...")
+            time.sleep(90)
+            try:
+                msg = client.messages.create(
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=4000,
+                    tools=[{"type": "web_search_20250305", "name": "web_search"}],
+                    messages=[{"role": "user", "content": prompt_text}],
+                )
+                full = "".join(b.text for b in msg.content if b.type == "text")
+                results = parse_json(full)
+                log.info(f"  [{qid}] Retry OK → {len(results)} DA")
+                return results
+            except Exception as e2:
+                log.error(f"  [{qid}] Retry thất bại: {e2}")
+                return []
         log.error(f"  [{qid}] LỖI: {e}")
         return []
 
@@ -337,7 +355,7 @@ def main():
     # ── Chạy từng query ──────────────────────────────────────────────────────
     for i, q in enumerate(QUERIES):
         log.info(f"\n[{i+1}/{len(QUERIES)}] {q['id']}")
-        results = run_query(client, q, delay=5)  # 5s giữa các query
+        results = run_query(client, q, delay=65)
         scan_log.append({
             "id": q["id"], "desc": q["desc"],
             "found": len(results), "new": 0,
