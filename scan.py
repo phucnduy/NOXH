@@ -59,7 +59,7 @@ def run_scan():
     client = anthropic.Anthropic(api_key=api_key)
     log.info("Gọi Claude API + web_search...")
     msg = client.messages.create(
-        model="claude-sonnet-4-20250514", max_tokens=4000,
+        model="claude-haiku-4-5-20251001",
         tools=[{"type":"web_search_20250305","name":"web_search"}],
         messages=[{"role":"user","content":build_prompt()}])
     full = "".join(b.text for b in msg.content if b.type=="text")
