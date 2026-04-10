@@ -1,0 +1,66 @@
+name: NOXH Monitor – Quét hàng ngày
+
+on:
+  schedule:
+    # 00:00 UTC = 07:00 Hà Nội (UTC+7)
+    - cron: "0 0 * * *"
+
+  # Cho phép chạy thủ công từ tab Actions
+  workflow_dispatch:
+    inputs:
+      force_email:
+        description: "Gửi email kể cả không có DA mới"
+        type: boolean
+        default: false
+      dry_run:
+        description: "Dry run (không gửi email)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write   # Để commit kết quả ngược lại repo
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # ── 2. Setup Python ──────────────────────────────────────────────────
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      # ── 3. Cài dependencies ──────────────────────────────────────────────
+      - name: Install dependencies
+        run: pip install anthropic
+
+      # ── 4. Chạy scan ─────────────────────────────────────────────────────
+      - name: Run NOXH scan
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SMTP_USER:         ${{ secrets.SMTP_USER }}
+          SMTP_PASS:         ${{ secrets.SMTP_PASS }}
+          EMAIL_TO:          ${{ secrets.EMAIL_TO }}
+          FORCE_EMAIL:       ${{ github.event.inputs.force_email || 'false' }}
+          DRY_RUN:           ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          python scan.py
+
+      # ── 5. Commit kết quả về repo ────────────────────────────────────────
+      - name: Commit updated data & reports
+        run: |
+          git config user.name  "NOXH Monitor Bot"
+          git config user.email "noxh-bot@github-actions"
+          git add data/ docs/
+          # Chỉ commit nếu có thay đổi
+          git diff --staged --quiet || git commit -m "chore: cập nhật NOXH $(date +'%d/%m/%Y %H:%M') [skip ci]"
+          git push
