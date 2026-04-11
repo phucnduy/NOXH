@@ -3,7 +3,7 @@
 scan.py – NOXH Monitor cho GitHub Actions
 Quét hàng ngày, gửi email tóm tắt DA mới, lưu báo cáo HTML lên GitHub Pages.
 """
-import os, sys, json, re, smtplib, logging
+import os, sys, json, re, smtplib, logging, html, time, shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 from email.mime.multipart import MIMEMultipart
@@ -27,6 +27,15 @@ log = logging.getLogger("noxh")
 def cfg(k, default=""):
     return os.environ.get(k, default).strip()
 
+def h(text):
+    """Escape HTML entities để tránh XSS."""
+    return html.escape(str(text)) if text and text != "—" else text
+
+def safe_url(url):
+    """Chỉ cho phép http/https để tránh javascript: URI injection."""
+    u = (url or "").strip()
+    return u if u.startswith(("http://", "https://")) else ""
+
 REGIONS     = ["Hà Nội", "Bắc Ninh", "Hưng Yên"]
 FORCE_EMAIL = cfg("FORCE_EMAIL", "false").lower() == "true"
 DRY_RUN     = cfg("DRY_RUN",     "false").lower() == "true"
@@ -37,11 +46,20 @@ def load_db():
         try:
             return json.loads(DB_FILE.read_text("utf-8"))
         except Exception:
-            pass
+            bak = DB_FILE.with_suffix(".json.bak")
+            if bak.exists():
+                try:
+                    log.warning("projects.json bị lỗi, thử load từ backup...")
+                    return json.loads(bak.read_text("utf-8"))
+                except Exception:
+                    pass
+            log.error("Không load được DB và backup, khởi tạo mới (dữ liệu cũ đã corrupt)")
     return {"projects": [], "scans": [], "updated": ""}
 
 def save_db(db):
     db["updated"] = datetime.now().isoformat()
+    if DB_FILE.exists():
+        shutil.copy2(DB_FILE, DB_FILE.with_suffix(".json.bak"))
     DB_FILE.write_text(json.dumps(db, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def dedup(existing, new_list):
@@ -83,25 +101,37 @@ def run_scan():
     log.info("Goi Claude API + web_search...")
     prompt_text = build_prompt()
     log.info(f"Prompt: {len(prompt_text)} chars")
-    msg = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=4000,
-        tools=[{"type": "web_search_20250305", "name": "web_search"}],
-        messages=[{"role": "user", "content": prompt_text}],
-    )
-    full = "".join(b.text for b in msg.content if b.type == "text")
-    log.info(f"Response: {len(full)} ky tu")
-    for pat in [r'\[\s*\{[\s\S]*?\}\s*\]', r'\[\s*\]']:
-        m = re.search(pat, full)
-        if m:
-            try:
-                data = json.loads(m.group())
-                log.info(f"Parse OK: {len(data)} DA")
-                return data
-            except Exception:
-                pass
-    log.warning("Khong parse duoc JSON")
-    return []
+
+    last_err = None
+    for attempt in range(3):
+        if attempt > 0:
+            wait = 30 * attempt
+            log.info(f"Retry {attempt}/2, chờ {wait}s...")
+            time.sleep(wait)
+        try:
+            msg = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=4000,
+                tools=[{"type": "web_search_20250305", "name": "web_search"}],
+                messages=[{"role": "user", "content": prompt_text}],
+            )
+            full = "".join(b.text for b in msg.content if b.type == "text")
+            log.info(f"Response: {len(full)} ky tu")
+            for pat in [r'\[\s*\{[\s\S]*?\}\s*\]', r'\[\s*\]']:
+                m = re.search(pat, full)
+                if m:
+                    try:
+                        data = json.loads(m.group())
+                        log.info(f"Parse OK: {len(data)} DA")
+                        return data
+                    except Exception:
+                        pass
+            log.warning("Khong parse duoc JSON")
+            return []
+        except Exception as e:
+            last_err = e
+            log.error(f"Scan loi (attempt {attempt + 1}/3): {e}")
+    raise last_err
 
 # ─── HTML Report ───────────────────────────────────────────────────────────────
 NAV, GOLD, GRN = "#0B2545", "#C9932A", "#1A6B3A"
@@ -132,8 +162,8 @@ def prov_color(p):
 
 def tbl_row(p, i):
     bg  = "#ffffff" if i % 2 == 0 else "#f8f9fa"
-    ten = p.get("ten_du_an", "—")
-    tm  = p.get("ten_thuong_mai", "")
+    ten = h(p.get("ten_du_an", "—"))
+    tm  = h(p.get("ten_thuong_mai", ""))
     tm_html = (
         f'<div style="font-weight:400;color:#9aa0a6;font-size:10px;'
         f'margin-top:2px;white-space:normal">{tm}</div>'
@@ -141,38 +171,38 @@ def tbl_row(p, i):
 
     hs = "—"
     if p.get("nhan_ho_so_tu"):
-        hs = p["nhan_ho_so_tu"]
+        hs = h(p["nhan_ho_so_tu"])
         if p.get("nhan_ho_so_den"):
-            hs += " →<br>" + p["nhan_ho_so_den"]
+            hs += " →<br>" + h(p["nhan_ho_so_den"])
     elif p.get("khoi_cong"):
-        hs = "KC: " + p["khoi_cong"]
+        hs = "KC: " + h(p["khoi_cong"])
 
-    src = p.get("nguon", "—")
-    url = p.get("url_nguon", "")
+    src = h(p.get("nguon", "—"))
+    url = safe_url(p.get("url_nguon", ""))
     src_html = (
-        f'<a href="{url}" target="_blank" '
+        f'<a href="{url}" target="_blank" rel="noopener noreferrer" '
         f'style="color:{GOLD};text-decoration:none">{src[:40]}</a>'
     ) if url else src[:40]
 
-    web = p.get("website_chu_dau_tu", "")
+    web = safe_url(p.get("website_chu_dau_tu", ""))
     web_html = (
-        f'<a href="{web}" target="_blank" '
+        f'<a href="{web}" target="_blank" rel="noopener noreferrer" '
         f'style="color:{GOLD};text-decoration:none;font-size:11px">↗ Link</a>'
     ) if web else "—"
 
     return (
         f'<tr style="background:{bg};border-bottom:1px solid #e8eaed">'
         f'<td style="padding:7px 8px;color:#9aa0a6;font-size:11px;text-align:center">{i+1}</td>'
-        f'<td style="padding:7px 8px">{badge(p.get("tinh_tp","—"), prov_color(p.get("tinh_tp","")))}</td>'
+        f'<td style="padding:7px 8px">{badge(h(p.get("tinh_tp","—")), prov_color(p.get("tinh_tp","")))}</td>'
         f'<td style="padding:7px 8px;font-weight:600;color:{NAV};font-size:12px">{ten}{tm_html}</td>'
-        f'<td style="padding:7px 8px;font-size:11px;color:#5f6368">{p.get("vi_tri","—")}'
-        f'<div style="color:#9aa0a6;font-size:10px">{p.get("quan_huyen","")}</div></td>'
-        f'<td style="padding:7px 8px;font-size:11px;color:#5f6368">{p.get("chu_dau_tu","—")}</td>'
-        f'<td style="padding:7px 8px;font-size:11px;text-align:center">{p.get("tong_can","—")}</td>'
-        f'<td style="padding:7px 8px;font-size:12px;font-weight:600;color:{GOLD};text-align:center">{p.get("gia_ban_m2","—")}</td>'
-        f'<td style="padding:7px 8px;font-size:11px;color:#5f6368;text-align:center">{p.get("gia_can_tu","—")}</td>'
+        f'<td style="padding:7px 8px;font-size:11px;color:#5f6368">{h(p.get("vi_tri","—"))}'
+        f'<div style="color:#9aa0a6;font-size:10px">{h(p.get("quan_huyen",""))}</div></td>'
+        f'<td style="padding:7px 8px;font-size:11px;color:#5f6368">{h(p.get("chu_dau_tu","—"))}</td>'
+        f'<td style="padding:7px 8px;font-size:11px;text-align:center">{h(p.get("tong_can","—"))}</td>'
+        f'<td style="padding:7px 8px;font-size:12px;font-weight:600;color:{GOLD};text-align:center">{h(p.get("gia_ban_m2","—"))}</td>'
+        f'<td style="padding:7px 8px;font-size:11px;color:#5f6368;text-align:center">{h(p.get("gia_can_tu","—"))}</td>'
         f'<td style="padding:7px 8px;font-size:11px;color:#3c4043">{hs}</td>'
-        f'<td style="padding:7px 8px">{badge(p.get("trang_thai","—"), status_color(p.get("trang_thai","")))}</td>'
+        f'<td style="padding:7px 8px">{badge(h(p.get("trang_thai","—")), status_color(p.get("trang_thai","")))}</td>'
         f'<td style="padding:7px 8px;font-size:11px;color:#9aa0a6">{src_html}</td>'
         f'<td style="padding:7px 8px;text-align:center">{web_html}</td>'
         f'</tr>'
@@ -389,12 +419,12 @@ def send_email(new_ps, all_ps, ts):
     if new_ps:
         cards = ""
         for p in new_ps:
-            hs = p.get("nhan_ho_so_tu", "") or p.get("khoi_cong", "") or "—"
+            hs = h(p.get("nhan_ho_so_tu", "") or p.get("khoi_cong", "") or "—")
             if p.get("nhan_ho_so_den"):
-                hs += " → " + p["nhan_ho_so_den"]
+                hs += " → " + h(p["nhan_ho_so_den"])
 
-            gia = p.get("gia_ban_m2", "")
-            gia_tu = p.get("gia_can_tu", "")
+            gia = h(p.get("gia_ban_m2", ""))
+            gia_tu = h(p.get("gia_can_tu", ""))
             gia_html = ""
             if gia or gia_tu:
                 gia_html = (
@@ -406,7 +436,7 @@ def send_email(new_ps, all_ps, ts):
                     f'</tr>'
                 )
 
-            trang_thai = p.get("trang_thai", "")
+            trang_thai = h(p.get("trang_thai", ""))
             tt_html = ""
             if trang_thai:
                 tt_html = (
@@ -419,7 +449,7 @@ def send_email(new_ps, all_ps, ts):
                     f'</tr>'
                 )
 
-            nguon = p.get("nguon", "")
+            nguon = h(p.get("nguon", ""))
             ng_html = ""
             if nguon:
                 ng_html = (
@@ -432,35 +462,35 @@ def send_email(new_ps, all_ps, ts):
 
             ten_tm = (
                 f'<div style="color:#9aa0a6;font-size:12px;margin-bottom:8px">'
-                f'{p["ten_thuong_mai"]}</div>'
+                f'{h(p["ten_thuong_mai"])}</div>'
             ) if p.get("ten_thuong_mai") else ""
 
             cards += f"""
 <div style="border:1px solid #e8eaed;border-radius:8px;padding:14px 16px;
   margin-bottom:14px;background:#fff">
   <div style="font-weight:700;color:{NAV};font-size:14px;
-    margin-bottom:4px">{p.get("ten_du_an","—")}</div>
+    margin-bottom:4px">{h(p.get("ten_du_an","—"))}</div>
   {ten_tm}
   <table style="width:100%;border-collapse:collapse">
     <tr>
       <td style="color:#9aa0a6;padding:3px 0;width:110px;
         font-size:12px;vertical-align:top">Vị trí</td>
       <td style="color:#3c4043;font-size:12px">
-        {p.get("vi_tri","—")}
-        {" – " + p["quan_huyen"] if p.get("quan_huyen") else ""}
+        {h(p.get("vi_tri","—"))}
+        {" – " + h(p["quan_huyen"]) if p.get("quan_huyen") else ""}
       </td>
     </tr>
     <tr>
       <td style="color:#9aa0a6;padding:3px 0;font-size:12px;
         vertical-align:top">Chủ đầu tư</td>
-      <td style="color:#3c4043;font-size:12px">{p.get("chu_dau_tu","—")}</td>
+      <td style="color:#3c4043;font-size:12px">{h(p.get("chu_dau_tu","—"))}</td>
     </tr>
     <tr>
       <td style="color:#9aa0a6;padding:3px 0;font-size:12px;
         vertical-align:top">Quy mô</td>
       <td style="color:#3c4043;font-size:12px">
-        {p.get("tong_can","—")} căn
-        {" | " + p["dien_tich_can"] if p.get("dien_tich_can") else ""}
+        {h(p.get("tong_can","—"))} căn
+        {" | " + h(p["dien_tich_can"]) if p.get("dien_tich_can") else ""}
       </td>
     </tr>
     {gia_html}

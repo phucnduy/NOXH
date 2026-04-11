@@ -4,10 +4,20 @@ scan_deep.py – Quét chuyên sâu 1 lần, toàn bộ NOXH Hà Nội
 Chạy nhiều query khác nhau, gộp + dedup kết quả vào database.
 Dùng để bootstrap database lần đầu hoặc cập nhật toàn diện.
 """
-import os, sys, json, re, time, logging
+import os, sys, json, re, time, logging, html, shutil
 from datetime import datetime
 from pathlib import Path
 import anthropic
+
+
+def h(text):
+    """Escape HTML entities để tránh XSS."""
+    return html.escape(str(text)) if text and text != "—" else text
+
+def safe_url(url):
+    """Chỉ cho phép http/https để tránh javascript: URI injection."""
+    u = (url or "").strip()
+    return u if u.startswith(("http://", "https://")) else ""
 
 BASE    = Path(__file__).parent
 DATA    = BASE / "data"
@@ -166,11 +176,20 @@ def load_db():
         try:
             return json.loads(DB_FILE.read_text("utf-8"))
         except Exception:
-            pass
+            bak = DB_FILE.with_suffix(".json.bak")
+            if bak.exists():
+                try:
+                    log.warning("projects.json bị lỗi, thử load từ backup...")
+                    return json.loads(bak.read_text("utf-8"))
+                except Exception:
+                    pass
+            log.error("Không load được DB và backup, khởi tạo mới (dữ liệu cũ đã corrupt)")
     return {"projects": [], "scans": [], "updated": ""}
 
 def save_db(db):
     db["updated"] = datetime.now().isoformat()
+    if DB_FILE.exists():
+        shutil.copy2(DB_FILE, DB_FILE.with_suffix(".json.bak"))
     DB_FILE.write_text(json.dumps(db, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def parse_json(text):
@@ -270,18 +289,24 @@ def build_report(all_ps, scan_log, ts):
     rows = ""
     for i,p in enumerate(all_ps):
         bg = "#fff" if i%2==0 else "#f8f9fa"
-        hs = f"{p.get('nhan_ho_so_tu','')} → {p.get('nhan_ho_so_den','')}" if p.get('nhan_ho_so_tu') and p.get('nhan_ho_so_den') else p.get('nhan_ho_so_tu') or p.get('khoi_cong') or "—"
-        sl = f'<a href="{p["url_nguon"]}" target="_blank" style="color:{GOLD}">{p.get("nguon","")[:50]}</a>' if p.get("url_nguon") else p.get("nguon","—")[:50]
+        if p.get('nhan_ho_so_tu') and p.get('nhan_ho_so_den'):
+            hs = h(p['nhan_ho_so_tu']) + " → " + h(p['nhan_ho_so_den'])
+        else:
+            hs = h(p.get('nhan_ho_so_tu') or p.get('khoi_cong') or "—")
+        url = safe_url(p.get("url_nguon", ""))
+        nguon_text = h(p.get("nguon","—"))[:50]
+        sl = f'<a href="{url}" target="_blank" rel="noopener noreferrer" style="color:{GOLD}">{nguon_text}</a>' if url else nguon_text
+        ten_tm_html = f'<br><small style="font-weight:400;color:#9aa0a6">{h(p["ten_thuong_mai"])}</small>' if p.get('ten_thuong_mai') else ''
         rows += f"""<tr style="background:{bg};border-bottom:1px solid #e8eaed">
           <td style="padding:7px 9px;color:#9aa0a6;font-size:11px;text-align:center">{i+1}</td>
-          <td style="padding:7px 9px">{badge(p.get('tinh_tp','—'),'navy')}</td>
-          <td style="padding:7px 9px;font-weight:600;color:{NAV};font-size:12px;max-width:220px;line-height:1.35">{p.get('ten_du_an','—')}{'<br><small style="font-weight:400;color:#9aa0a6">'+p['ten_thuong_mai']+'</small>' if p.get('ten_thuong_mai') else ''}</td>
-          <td style="padding:7px 9px;font-size:11px;color:#5f6368">{p.get('quan_huyen','—')}</td>
-          <td style="padding:7px 9px;font-size:11px;color:#5f6368;max-width:150px">{p.get('chu_dau_tu','—')}</td>
-          <td style="padding:7px 9px;font-size:11px;text-align:center">{p.get('tong_can','—')}</td>
-          <td style="padding:7px 9px;font-size:11px;font-weight:600;color:{GOLD};text-align:center">{p.get('gia_ban_m2','—')}</td>
+          <td style="padding:7px 9px">{badge(h(p.get('tinh_tp','—')),'navy')}</td>
+          <td style="padding:7px 9px;font-weight:600;color:{NAV};font-size:12px;max-width:220px;line-height:1.35">{h(p.get('ten_du_an','—'))}{ten_tm_html}</td>
+          <td style="padding:7px 9px;font-size:11px;color:#5f6368">{h(p.get('quan_huyen','—'))}</td>
+          <td style="padding:7px 9px;font-size:11px;color:#5f6368;max-width:150px">{h(p.get('chu_dau_tu','—'))}</td>
+          <td style="padding:7px 9px;font-size:11px;text-align:center">{h(p.get('tong_can','—'))}</td>
+          <td style="padding:7px 9px;font-size:11px;font-weight:600;color:{GOLD};text-align:center">{h(p.get('gia_ban_m2','—'))}</td>
           <td style="padding:7px 9px;font-size:11px;color:#5f6368;white-space:nowrap">{hs}</td>
-          <td style="padding:7px 9px">{badge(p.get('trang_thai','—'),sc(p.get('trang_thai','')))}</td>
+          <td style="padding:7px 9px">{badge(h(p.get('trang_thai','—')),sc(p.get('trang_thai','')))}</td>
           <td style="padding:7px 9px;font-size:10px;color:#9aa0a6">{sl}</td>
         </tr>"""
 
