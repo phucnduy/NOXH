@@ -9,6 +9,11 @@ from datetime import datetime
 from pathlib import Path
 import anthropic
 
+def cfg(k: str, default: str = "") -> str:
+    return os.environ.get(k, default).strip()
+
+WEBAPP_DATA = Path(cfg("WEBAPP_DATA_PATH", str(Path(__file__).parent / "../web-app/public/data.json")))
+
 
 def h(text):
     """Escape HTML entities để tránh XSS."""
@@ -32,6 +37,116 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 log = logging.getLogger("noxh-deep")
+
+# ─── Province normalization (địa giới 2025 theo NQ 202/2025/QH15) ─────────────
+PROVINCE_NORMALIZE: dict[str, str] = {
+    # TP trực thuộc TW giữ nguyên / viết lại
+    "Hà Nội": "Hà Nội",
+    "TP. Hồ Chí Minh": "TP. Hồ Chí Minh",
+    "Hồ Chí Minh": "TP. Hồ Chí Minh",
+    "TP.HCM": "TP. Hồ Chí Minh",
+    "TPHCM": "TP. Hồ Chí Minh",
+    "Tp.HCM": "TP. Hồ Chí Minh",
+    "Hải Phòng": "Hải Phòng",
+    "TP. Hải Phòng": "Hải Phòng",
+    "Đà Nẵng": "Đà Nẵng",
+    "TP. Đà Nẵng": "Đà Nẵng",
+    "Thành phố Huế": "Thành phố Huế",
+    "Huế": "Thành phố Huế",
+    "TT. Huế": "Thành phố Huế",
+    "Thừa Thiên Huế": "Thành phố Huế",
+    "Thừa Thiên - Huế": "Thành phố Huế",
+    "Cần Thơ": "Cần Thơ",
+    "TP. Cần Thơ": "Cần Thơ",
+    # Tỉnh giữ nguyên
+    "Cao Bằng": "Cao Bằng",
+    "Lai Châu": "Lai Châu",
+    "Điện Biên": "Điện Biên",
+    "Lạng Sơn": "Lạng Sơn",
+    "Sơn La": "Sơn La",
+    "Quảng Ninh": "Quảng Ninh",
+    "Thanh Hóa": "Thanh Hóa",
+    "Nghệ An": "Nghệ An",
+    "Hà Tĩnh": "Hà Tĩnh",
+    # Tỉnh đã sáp nhập
+    "Hà Giang": "Tuyên Quang",
+    "Tuyên Quang": "Tuyên Quang",
+    "Lào Cai": "Lào Cai",
+    "Yên Bái": "Lào Cai",
+    "Bắc Kạn": "Thái Nguyên",
+    "Thái Nguyên": "Thái Nguyên",
+    "Hòa Bình": "Phú Thọ",
+    "Vĩnh Phúc": "Phú Thọ",
+    "Phú Thọ": "Phú Thọ",
+    "Bắc Giang": "Bắc Ninh",
+    "Bắc Ninh": "Bắc Ninh",
+    "Hải Dương": "Hải Phòng",
+    "Thái Bình": "Hưng Yên",
+    "Hưng Yên": "Hưng Yên",
+    "Hà Nam": "Ninh Bình",
+    "Nam Định": "Ninh Bình",
+    "Ninh Bình": "Ninh Bình",
+    "Quảng Bình": "Quảng Trị",
+    "Quảng Trị": "Quảng Trị",
+    "Quảng Nam": "Đà Nẵng",
+    "Kon Tum": "Quảng Ngãi",
+    "Quảng Ngãi": "Quảng Ngãi",
+    "Bình Định": "Gia Lai",
+    "Gia Lai": "Gia Lai",
+    "Phú Yên": "Đắk Lắk",
+    "Đắk Lắk": "Đắk Lắk",
+    "Khánh Hòa": "Khánh Hòa",
+    "Ninh Thuận": "Khánh Hòa",
+    "Đắk Nông": "Lâm Đồng",
+    "Lâm Đồng": "Lâm Đồng",
+    "Bình Thuận": "Lâm Đồng",
+    "Bình Phước": "Đồng Nai",
+    "Đồng Nai": "Đồng Nai",
+    "Bà Rịa - Vũng Tàu": "TP. Hồ Chí Minh",
+    "Bà Rịa-Vũng Tàu": "TP. Hồ Chí Minh",
+    "BR-VT": "TP. Hồ Chí Minh",
+    "Bình Dương": "TP. Hồ Chí Minh",
+    "Long An": "Tây Ninh",
+    "Tây Ninh": "Tây Ninh",
+    "Tiền Giang": "Đồng Tháp",
+    "Đồng Tháp": "Đồng Tháp",
+    "An Giang": "An Giang",
+    "Kiên Giang": "An Giang",
+    "Bến Tre": "Vĩnh Long",
+    "Vĩnh Long": "Vĩnh Long",
+    "Trà Vinh": "Vĩnh Long",
+    "Sóc Trăng": "Cần Thơ",
+    "Hậu Giang": "Cần Thơ",
+    "Bạc Liêu": "Cà Mau",
+    "Cà Mau": "Cà Mau",
+}
+
+
+def normalize_province(raw: str) -> str:
+    """Chuẩn hoá tên tỉnh/thành → tên mới theo địa giới 2025."""
+    s = (raw or "").strip()
+    if s in PROVINCE_NORMALIZE:
+        return PROVINCE_NORMALIZE[s]
+    for k, v in PROVINCE_NORMALIZE.items():
+        if k.lower() == s.lower():
+            return v
+    for k, v in PROVINCE_NORMALIZE.items():
+        if k.lower() in s.lower() or s.lower() in k.lower():
+            return v
+    return s
+
+
+def sync_webapp(projects: list) -> None:
+    """Đồng bộ danh sách dự án đã chuẩn hoá sang web-app/public/data.json."""
+    try:
+        path = WEBAPP_DATA.resolve()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"projects": projects, "updated": datetime.now().isoformat()}
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        log.info(f"Đồng bộ web-app OK: {path} ({len(projects)} dự án)")
+    except Exception as e:
+        log.warning(f"Không sync được web-app data: {e}")
+
 
 # ─── Danh sách query chuyên sâu ───────────────────────────────────────────────
 # Mỗi query tập trung vào 1 góc độ khác nhau để bao phủ tối đa
@@ -245,6 +360,9 @@ def run_query(client, query_config, delay=3):
         )
         full = "".join(b.text for b in msg.content if b.type == "text")
         results = parse_json(full)
+        for p in results:
+            if p.get("tinh_tp"):
+                p["tinh_tp"] = normalize_province(p["tinh_tp"])
         log.info(f"  [{qid}] → {len(results)} dự án")
         return results
     except Exception as e:
@@ -261,6 +379,9 @@ def run_query(client, query_config, delay=3):
                 )
                 full = "".join(b.text for b in msg.content if b.type == "text")
                 results = parse_json(full)
+                for p in results:
+                    if p.get("tinh_tp"):
+                        p["tinh_tp"] = normalize_province(p["tinh_tp"])
                 log.info(f"  [{qid}] Retry OK → {len(results)} DA")
                 return results
             except Exception as e2:
@@ -424,6 +545,7 @@ def main():
     })
     db["scans"] = db["scans"][-100:]
     save_db(db)
+    sync_webapp(merged)
 
     log.info(f"\nKẾT QUẢ CUỐI:")
     log.info(f"  Tổng bản ghi thu thập : {len(all_collected)}")
