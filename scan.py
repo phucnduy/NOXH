@@ -39,6 +39,8 @@ def safe_url(url):
 REGIONS     = ["Hà Nội", "Bắc Ninh", "Hưng Yên"]
 FORCE_EMAIL = cfg("FORCE_EMAIL", "false").lower() == "true"
 DRY_RUN     = cfg("DRY_RUN",     "false").lower() == "true"
+SMTP_HOST   = cfg("SMTP_HOST",   "localhost")
+SMTP_PORT   = int(cfg("SMTP_PORT", "25"))
 
 # ─── Database ──────────────────────────────────────────────────────────────────
 def load_db():
@@ -581,10 +583,12 @@ def send_email(new_ps, all_ps, ts):
     msg.attach(MIMEText(html, "html", "utf-8"))
 
     try:
-        with smtplib.SMTP("smtp.gmail.com", 587) as s:
-            s.starttls()
-            s.login(su, sp)
-            s.sendmail(su, eto, msg.as_string())
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as s:
+            if SMTP_HOST not in ("localhost", "127.0.0.1"):
+                s.starttls()
+                if su and sp:
+                    s.login(su, sp)
+            s.sendmail(su or f"noxh@{SMTP_HOST}", eto, msg.as_string())
         log.info(f"Email OK → {', '.join(eto)}")
         return True
     except Exception as e:
