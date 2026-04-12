@@ -40,6 +40,14 @@ log = logging.getLogger("noxh-deep")
 
 # ─── Province normalization (địa giới 2025 theo NQ 202/2025/QH15) ─────────────
 PROVINCE_NORMALIZE: dict[str, str] = {
+    # ASCII / không dấu fallback
+    "Ha Noi": "Hà Nội",
+    "TP Ho Chi Minh": "TP. Hồ Chí Minh",
+    "Ho Chi Minh": "TP. Hồ Chí Minh",
+    "Da Nang": "Đà Nẵng",
+    "Hai Phong": "Hải Phòng",
+    "Can Tho": "Cần Thơ",
+    "Hue": "Thành phố Huế",
     # TP trực thuộc TW giữ nguyên / viết lại
     "Hà Nội": "Hà Nội",
     "TP. Hồ Chí Minh": "TP. Hồ Chí Minh",

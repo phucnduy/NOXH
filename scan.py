@@ -109,6 +109,14 @@ ALL_PROVINCES = [p for _, provinces, _ in SCAN_BATCHES for p in provinces]
 
 # ── Bảng chuẩn hoá tên tỉnh cũ → tên mới ──────────────────────────────────────
 PROVINCE_NORMALIZE: dict[str, str] = {
+    # ASCII / không dấu fallback
+    "Ha Noi": "Hà Nội",
+    "TP Ho Chi Minh": "TP. Hồ Chí Minh",
+    "Ho Chi Minh": "TP. Hồ Chí Minh",
+    "Da Nang": "Đà Nẵng",
+    "Hai Phong": "Hải Phòng",
+    "Can Tho": "Cần Thơ",
+    "Hue": "Thành phố Huế",
     # TP trực thuộc TW giữ nguyên / viết lại
     "Hà Nội": "Hà Nội",
     "TP. Hồ Chí Minh": "TP. Hồ Chí Minh",
