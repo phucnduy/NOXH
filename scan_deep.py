@@ -462,18 +462,21 @@ def gemini_fallback(prompt_text: str) -> list[dict]:
         log.warning("  Gemini fallback: thiếu GEMINI_API_KEY trong .env")
         return []
     try:
-        import google.generativeai as genai
+        from google import genai as ggenai
+        from google.genai import types as gtypes
     except ImportError:
-        log.warning("  Gemini fallback: chưa cài thư viện (pip install google-generativeai)")
+        log.warning("  Gemini fallback: chưa cài thư viện (pip install google-genai)")
         return []
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(
-            model_name="gemini-2.0-flash",
-            tools=[genai.types.Tool(google_search=genai.types.GoogleSearch())],
+        client = ggenai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt_text,
+            config=gtypes.GenerateContentConfig(
+                tools=[gtypes.Tool(google_search=gtypes.GoogleSearch())],
+            ),
         )
-        response = model.generate_content(prompt_text)
-        full = response.text
+        full = response.text or ""
         log.info(f"  Gemini fallback response: {len(full)} ký tự")
         for pat in [r'\[\s*\{[\s\S]*?\}\s*\]', r'\[\s*\]']:
             m = re.search(pat, full)
