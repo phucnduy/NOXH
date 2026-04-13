@@ -389,6 +389,7 @@ def build_prompt(provinces: list[str], sources: list[str]) -> str:
         '"can_ban":"","dien_tich_can":"","gia_ban_m2":"","gia_can_tu":"",',
         '"khoi_cong":"","nhan_ho_so_tu":"","nhan_ho_so_den":"","du_kien_ban_giao":"",',
         '"doi_tuong_uu_tien":"","dia_diem_nop_ho_so":"","website_chu_dau_tu":"",',
+        '"quy_mo_dan_so":"","lien_he":"SDT hoac email lien he chu dau tu","anh_phoi_canh":"url anh phoi canh du an",',
         '"trang_thai":"Dang nhan HS|Sap nhan HS|Vua khoi cong|Dang thi cong",',
         '"nguon":"ten bao + ngay","url_nguon":"","ghi_chu":""}]',
         "",
