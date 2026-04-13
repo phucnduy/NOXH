@@ -398,6 +398,45 @@ def build_prompt(provinces: list[str], sources: list[str]) -> str:
     return "\n".join(lines)
 
 # ─── API call ──────────────────────────────────────────────────────────────────
+def gemini_fallback(prompt_text: str) -> list[dict]:
+    """Fallback sang Gemini 2.0 Flash với Google Search Grounding khi Claude thất bại."""
+    api_key = cfg("GEMINI_API_KEY")
+    if not api_key:
+        log.warning("  Gemini fallback: thiếu GEMINI_API_KEY trong .env")
+        return []
+    try:
+        import google.generativeai as genai
+    except ImportError:
+        log.warning("  Gemini fallback: chưa cài thư viện (pip install google-generativeai)")
+        return []
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(
+            model_name="gemini-2.0-flash",
+            tools=[genai.types.Tool(google_search=genai.types.GoogleSearch())],
+        )
+        response = model.generate_content(prompt_text)
+        full = response.text
+        log.info(f"  Gemini fallback response: {len(full)} ký tự")
+        for pat in [r'\[\s*\{[\s\S]*?\}\s*\]', r'\[\s*\]']:
+            m = re.search(pat, full)
+            if m:
+                try:
+                    data = json.loads(m.group())
+                    for p in data:
+                        if p.get("tinh_tp"):
+                            p["tinh_tp"] = normalize_province(p["tinh_tp"])
+                    log.info(f"  Gemini fallback OK: {len(data)} dự án")
+                    return data
+                except Exception:
+                    pass
+        log.warning("  Gemini fallback: không parse được JSON")
+        return []
+    except Exception as e:
+        log.error(f"  Gemini fallback lỗi: {e}")
+        return []
+
+
 def run_batch(client: anthropic.Anthropic, batch_name: str,
               provinces: list[str], sources: list[str]) -> list[dict]:
     prompt_text = build_prompt(provinces, sources)
@@ -437,7 +476,8 @@ def run_batch(client: anthropic.Anthropic, batch_name: str,
             last_err = e
             log.error(f"  Scan lỗi attempt {attempt + 1}/3: {e}")
     if last_err:
-        raise last_err
+        log.warning(f"  Claude thất bại sau 3 lần thử → chuyển Gemini fallback...")
+        return gemini_fallback(prompt_text)
     return []
 
 def run_scan(db: dict) -> tuple[list[dict], list[str]]:
