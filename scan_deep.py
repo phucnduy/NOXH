@@ -156,6 +156,112 @@ def sync_webapp(projects: list) -> None:
         log.warning(f"Không sync được web-app data: {e}")
 
 
+# ─── Geocoding ─────────────────────────────────────────────────────────────────
+
+PROVINCE_CAPITALS: dict[str, tuple[float, float]] = {
+    "Hà Nội": (21.0285, 105.8542),
+    "Hải Phòng": (20.8449, 106.6881),
+    "Bắc Ninh": (21.1861, 106.0763),
+    "Hưng Yên": (20.6464, 106.0511),
+    "Quảng Ninh": (21.0064, 107.2925),
+    "Phú Thọ": (21.3450, 105.2230),
+    "Thái Nguyên": (21.5928, 105.8442),
+    "Lào Cai": (22.4809, 103.9754),
+    "Sơn La": (21.3272, 103.9144),
+    "Tuyên Quang": (21.8239, 105.2180),
+    "Lạng Sơn": (21.8537, 106.7615),
+    "Cao Bằng": (22.6657, 106.2639),
+    "Lai Châu": (22.3964, 103.4580),
+    "Điện Biên": (21.3860, 103.0230),
+    "Ninh Bình": (20.2541, 105.9765),
+    "Thanh Hóa": (19.8067, 105.7852),
+    "Nghệ An": (18.6796, 105.6813),
+    "Hà Tĩnh": (18.3428, 105.9057),
+    "Quảng Trị": (16.7403, 107.1857),
+    "Thành phố Huế": (16.4637, 107.5909),
+    "Đà Nẵng": (16.0544, 108.2022),
+    "Quảng Ngãi": (15.1200, 108.7922),
+    "Gia Lai": (13.9833, 108.0000),
+    "Đắk Lắk": (12.6667, 108.0500),
+    "Khánh Hòa": (12.2388, 109.1967),
+    "Lâm Đồng": (11.9465, 108.4419),
+    "TP. Hồ Chí Minh": (10.8231, 106.6297),
+    "Đồng Nai": (10.9455, 107.1684),
+    "Tây Ninh": (11.3352, 106.1099),
+    "Đồng Tháp": (10.4937, 105.6882),
+    "An Giang": (10.5216, 105.1259),
+    "Vĩnh Long": (10.2538, 106.0000),
+    "Cần Thơ": (10.0452, 105.7469),
+    "Cà Mau": (9.1769, 105.1500),
+}
+
+
+def geocode_projects(projects: list) -> bool:
+    """Geocode các dự án còn thiếu tọa độ bằng Nominatim OSM.
+    Mutates projects in-place. Returns True nếu có ít nhất 1 dự án được geocode.
+    """
+    import urllib.request
+    import urllib.parse
+
+    needs_geocode = [
+        p for p in projects
+        if not p.get("toado_lat") or p.get("toado_lat") == 0
+    ]
+    if not needs_geocode:
+        log.info("Geocoding: tất cả dự án đã có tọa độ")
+        return False
+
+    log.info(f"Geocoding: {len(needs_geocode)} dự án cần tọa độ")
+    geocoded_count = 0
+    headers = {"User-Agent": "NOXH-Monitor/1.0 (noxh-monitor)"}
+
+    def nominatim_search(query: str) -> tuple[float, float] | None:
+        params = urllib.parse.urlencode({
+            "q": query, "format": "json", "limit": "1", "countrycodes": "vn",
+        })
+        url = f"https://nominatim.openstreetmap.org/search?{params}"
+        req = urllib.request.Request(url, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read())
+            if data:
+                return float(data[0]["lat"]), float(data[0]["lon"])
+        except Exception as e:
+            log.debug(f"Nominatim lỗi '{query}': {e}")
+        return None
+
+    for p in needs_geocode:
+        tinh = p.get("tinh_tp", "")
+        vi_tri = p.get("vi_tri", "")
+        quan_huyen = p.get("quan_huyen", "")
+        result: tuple[float, float] | None = None
+
+        # Tier 1: địa chỉ đầy đủ
+        if vi_tri and tinh:
+            result = nominatim_search(f"{vi_tri}, {tinh}, Việt Nam")
+            time.sleep(1.2)
+
+        # Tier 2: quận/huyện + tỉnh
+        if not result and quan_huyen and tinh:
+            result = nominatim_search(f"{quan_huyen}, {tinh}, Việt Nam")
+            time.sleep(1.2)
+
+        # Tier 3: tọa độ tỉnh lỵ (fallback)
+        if not result and tinh in PROVINCE_CAPITALS:
+            result = PROVINCE_CAPITALS[tinh]
+            log.debug(f"Dùng tọa độ tỉnh lỵ cho: {p.get('ten_du_an')}")
+
+        if result:
+            p["toado_lat"], p["toado_lng"] = result[0], result[1]
+            geocoded_count += 1
+            log.info(f"  ✓ {p.get('ten_du_an', '?')[:40]} → {result[0]:.4f}, {result[1]:.4f}")
+        else:
+            log.warning(f"  ✗ Không tìm được tọa độ: {p.get('ten_du_an', '?')[:40]}")
+
+    log.info(f"Geocoding xong: {geocoded_count}/{len(needs_geocode)} thành công")
+    return geocoded_count > 0
+
+
 # ─── Danh sách query chuyên sâu ───────────────────────────────────────────────
 # Mỗi query tập trung vào 1 góc độ khác nhau để bao phủ tối đa
 QUERIES = [
@@ -553,6 +659,11 @@ def main():
     })
     db["scans"] = db["scans"][-100:]
     save_db(db)
+
+    # Geocoding tự động cho các dự án thiếu tọa độ
+    if geocode_projects(merged):
+        save_db(db)
+
     sync_webapp(merged)
 
     log.info(f"\nKẾT QUẢ CUỐI:")
