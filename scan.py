@@ -54,8 +54,11 @@ SCAN_BATCHES = [
         "Đồng bằng Bắc Bộ",
         ["Hà Nội", "Hải Phòng", "Bắc Ninh", "Hưng Yên", "Quảng Ninh"],
         [
-            "soxaydung.hanoi.gov.vn", "sotnmt.haiphong.gov.vn",
-            "sxd.bacninh.gov.vn", "sxd.hungyen.gov.vn", "sxd.quangninh.gov.vn",
+            "soxaydung.hanoi.gov.vn",
+            "sxd.haiphong.gov.vn",
+            "sxd.bacninh.gov.vn",
+            "sxd.hungyen.gov.vn",
+            "sxd.quangninh.gov.vn",
         ],
     ),
     (
@@ -63,8 +66,15 @@ SCAN_BATCHES = [
         ["Phú Thọ", "Thái Nguyên", "Lào Cai", "Sơn La", "Tuyên Quang",
          "Lạng Sơn", "Cao Bằng", "Lai Châu", "Điện Biên"],
         [
-            "sxd.phutho.gov.vn", "sxd.thainguyen.gov.vn",
-            "sxd.laocai.gov.vn", "sxd.sonla.gov.vn", "sxd.tuyenquang.gov.vn",
+            "sxd.phutho.gov.vn",
+            "sxd.thainguyen.gov.vn",
+            "sxd.laocai.gov.vn",
+            "sxd.sonla.gov.vn",
+            "sxd.tuyenquang.gov.vn",
+            "sxd.langson.gov.vn",
+            "sxd.caobang.gov.vn",
+            "sxd.laichau.gov.vn",
+            "sxd.dienbien.gov.vn",
         ],
     ),
     (
@@ -72,9 +82,12 @@ SCAN_BATCHES = [
         ["Ninh Bình", "Thanh Hóa", "Nghệ An", "Hà Tĩnh",
          "Quảng Trị", "Thành phố Huế"],
         [
-            "sxd.ninhbinh.gov.vn", "sxd.thanhhoa.gov.vn",
-            "sxd.nghean.gov.vn", "sxd.hatinh.gov.vn",
-            "sxd.quangtri.gov.vn", "sxd.thuathienhue.gov.vn",
+            "sxd.ninhbinh.gov.vn",
+            "sxd.thanhhoa.gov.vn",
+            "sxd.nghean.gov.vn",
+            "sxd.hatinh.gov.vn",
+            "sxd.quangtri.gov.vn",
+            "sxd.thuathienhue.gov.vn",
         ],
     ),
     (
@@ -82,26 +95,33 @@ SCAN_BATCHES = [
         ["Đà Nẵng", "Quảng Ngãi", "Gia Lai", "Đắk Lắk",
          "Khánh Hòa", "Lâm Đồng"],
         [
-            "soxaydung.danang.gov.vn", "sxd.quangngai.gov.vn",
-            "sxd.gialai.gov.vn", "sxd.daklak.gov.vn",
-            "sxd.khanhhoa.gov.vn", "sxd.lamdong.gov.vn",
+            "soxaydung.danang.gov.vn",
+            "sxd.quangngai.gov.vn",
+            "sxd.gialai.gov.vn",
+            "sxd.daklak.gov.vn",
+            "sxd.khanhhoa.gov.vn",
+            "sxd.lamdong.gov.vn",
         ],
     ),
     (
         "Đông Nam Bộ",
         ["TP. Hồ Chí Minh", "Đồng Nai", "Tây Ninh"],
         [
-            "soxaydung.tphcm.gov.vn", "noxh.tphcm.gov.vn",
-            "sxd.dongnai.gov.vn", "sxd.tayninh.gov.vn",
-            "batdongsan.com.vn", "cafeland.vn",
+            "soxaydung.tphcm.gov.vn",
+            "noxh.tphcm.gov.vn",
+            "sxd.dongnai.gov.vn",
+            "sxd.tayninh.gov.vn",
         ],
     ),
     (
         "Đồng bằng sông Cửu Long",
         ["Đồng Tháp", "An Giang", "Vĩnh Long", "Cần Thơ", "Cà Mau"],
         [
-            "sxd.dongthap.gov.vn", "sxd.angiang.gov.vn",
-            "sxd.vinhlong.gov.vn", "soxaydung.cantho.gov.vn", "sxd.camau.gov.vn",
+            "sxd.dongthap.gov.vn",
+            "sxd.angiang.gov.vn",
+            "sxd.vinhlong.gov.vn",
+            "soxaydung.cantho.gov.vn",
+            "sxd.camau.gov.vn",
         ],
     ),
 ]
@@ -372,7 +392,7 @@ def dedup(existing: list, new_list: list) -> tuple[list, list]:
 def build_prompt(provinces: list[str], sources: list[str]) -> str:
     year = datetime.now().year
     prov_str = ", ".join(provinces)
-    src_str  = ", ".join(sources[:6])
+    src_str  = ", ".join(sources)  # Tất cả nguồn SXD chính thức
     lines = [
         f"Tim tat ca du an nha o xa hoi (NOXH) tai: {prov_str}",
         f"Bao gom cac du an trong cac trang thai sau (nam {year}-{year+2}):",
