@@ -91,8 +91,9 @@ SCAN_BATCHES = [
         "Đông Nam Bộ",
         ["TP. Hồ Chí Minh", "Đồng Nai", "Tây Ninh"],
         [
-            "sxd.hochiminhcity.gov.vn", "sxd.dongnai.gov.vn",
-            "sxd.tayninh.gov.vn",
+            "soxaydung.tphcm.gov.vn", "noxh.tphcm.gov.vn",
+            "sxd.dongnai.gov.vn", "sxd.tayninh.gov.vn",
+            "batdongsan.com.vn", "cafeland.vn",
         ],
     ),
     (
@@ -100,7 +101,7 @@ SCAN_BATCHES = [
         ["Đồng Tháp", "An Giang", "Vĩnh Long", "Cần Thơ", "Cà Mau"],
         [
             "sxd.dongthap.gov.vn", "sxd.angiang.gov.vn",
-            "sxd.vinhlong.gov.vn", "sxd.cantho.gov.vn", "sxd.camau.gov.vn",
+            "sxd.vinhlong.gov.vn", "soxaydung.cantho.gov.vn", "sxd.camau.gov.vn",
         ],
     ),
 ]
@@ -369,14 +370,21 @@ def dedup(existing: list, new_list: list) -> tuple[list, list]:
 
 # ─── Prompt ────────────────────────────────────────────────────────────────────
 def build_prompt(provinces: list[str], sources: list[str]) -> str:
-    nm = (datetime.now().replace(day=1) + timedelta(days=32)).strftime("%m/%Y")
+    year = datetime.now().year
     prov_str = ", ".join(provinces)
-    src_str  = ", ".join(sources[:6])  # Tối đa 6 nguồn chính thức
+    src_str  = ", ".join(sources[:6])
     lines = [
-        f"Tim kiem thong tin moi nhat ve du an nha o xa hoi (NOXH) tai: {prov_str}",
-        f"chuan bi khoi cong hoac mo ban (nhan ho so) thang {nm} hoac sap toi 2026.",
+        f"Tim tat ca du an nha o xa hoi (NOXH) tai: {prov_str}",
+        f"Bao gom cac du an trong cac trang thai sau (nam {year}-{year+2}):",
+        "  1. Dang trien khai / dang thi cong",
+        "  2. Da cong bo / sap mo ban hoac nhan ho so",
+        "  3. Vua khoi cong hoac chuan bi khoi cong",
+        "  4. Ke hoach da duoc phe duyet (pipeline)",
+        "",
         f"Nguon chinh thuc uu tien: {src_str}",
-        "Nguon bao: cafef.vn, vnexpress.net, tienphong.vn, baoxaydung.vn, laodong.vn, dantri.vn",
+        "Nguon bao: cafef.vn, vnexpress.net, tienphong.vn, baoxaydung.vn,",
+        "           laodong.vn, dantri.vn, batdongsan.com.vn, cafeland.vn,",
+        "           nguoiduatin.vn, reatimes.vn, nhadatmoi.com.vn",
         "",
         "Luu y quan trong: ten tinh/thanh pho phai dung theo ten moi nhat 2025.",
         "Vi du: Bac Giang → Bac Ninh | Hai Duong → Hai Phong | Thi Binh → Hung Yen",
@@ -390,7 +398,7 @@ def build_prompt(provinces: list[str], sources: list[str]) -> str:
         '"khoi_cong":"","nhan_ho_so_tu":"","nhan_ho_so_den":"","du_kien_ban_giao":"",',
         '"doi_tuong_uu_tien":"","dia_diem_nop_ho_so":"","website_chu_dau_tu":"",',
         '"quy_mo_dan_so":"","lien_he":"SDT hoac email lien he chu dau tu","anh_phoi_canh":"url anh phoi canh du an",',
-        '"trang_thai":"Dang nhan HS|Sap nhan HS|Vua khoi cong|Dang thi cong",',
+        '"trang_thai":"Dang nhan HS|Sap nhan HS|Vua khoi cong|Dang thi cong|Ke hoach",',
         '"nguon":"ten bao + ngay","url_nguon":"","ghi_chu":""}]',
         "",
         "Chi du an co thong tin cu the. Neu khong co → tra: []",
@@ -510,10 +518,10 @@ def run_scan(db: dict) -> tuple[list[dict], list[str]]:
             scanned_names.append(name)
         except Exception as e:
             log.error(f"Vùng [{name}] thất bại: {e}")
-        # Nghỉ giữa các batch để tránh rate-limit
+        # Nghỉ giữa các batch để tránh rate-limit 50k tokens/phút
         if len(batches_to_scan) > 1 and i != batches_to_scan[-1]:
-            log.info("  Nghỉ 5s giữa các batch...")
-            time.sleep(5)
+            log.info("  Nghỉ 45s giữa các batch...")
+            time.sleep(45)
 
     # Cập nhật index cho lần sau (dùng khi FULL_SCAN=false)
     last = db.get("last_batch_index", 0)
