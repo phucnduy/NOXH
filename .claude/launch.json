@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-app",
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": ["-c", "cd /Users/nguyenduyphuc/Downloads/Antigravity/web-app && npm run dev"],
+      "port": 3000
+    },
+    {
+      "name": "docs-preview",
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": ["-c", "cd /tmp && python3 -m http.server 8080 --directory /Users/nguyenduyphuc/Downloads/Antigravity/.claude/worktrees/mystifying-brown/docs"],
+      "port": 8080
+    },
+    {
+      "name": "scan-dryrun",
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": ["-c", "cd /tmp && DRY_RUN=true python3 /Users/nguyenduyphuc/Downloads/Antigravity/.claude/worktrees/mystifying-brown/scan.py"],
+      "port": 0
+    },
+    {
+      "name": "scan-deep-dryrun",
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": ["-c", "cd /tmp && DRY_RUN=true python3 /Users/nguyenduyphuc/Downloads/Antigravity/.claude/worktrees/mystifying-brown/scan_deep.py"],
+      "port": 0
+    }
+  ]
+}

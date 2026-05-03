@@ -4,10 +4,25 @@ scan_deep.py – Quét chuyên sâu 1 lần, toàn bộ NOXH Hà Nội
 Chạy nhiều query khác nhau, gộp + dedup kết quả vào database.
 Dùng để bootstrap database lần đầu hoặc cập nhật toàn diện.
 """
-import os, sys, json, re, time, logging
+import os, sys, json, re, time, logging, html, shutil
 from datetime import datetime
 from pathlib import Path
 import anthropic
+
+def cfg(k: str, default: str = "") -> str:
+    return os.environ.get(k, default).strip()
+
+WEBAPP_DATA = Path(cfg("WEBAPP_DATA_PATH", str(Path(__file__).parent / "../web-app/public/data.json")))
+
+
+def h(text):
+    """Escape HTML entities để tránh XSS."""
+    return html.escape(str(text)) if text and text != "—" else text
+
+def safe_url(url):
+    """Chỉ cho phép http/https để tránh javascript: URI injection."""
+    u = (url or "").strip()
+    return u if u.startswith(("http://", "https://")) else ""
 
 BASE    = Path(__file__).parent
 DATA    = BASE / "data"
@@ -22,6 +37,230 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 log = logging.getLogger("noxh-deep")
+
+# ─── Province normalization (địa giới 2025 theo NQ 202/2025/QH15) ─────────────
+PROVINCE_NORMALIZE: dict[str, str] = {
+    # ASCII / không dấu fallback
+    "Ha Noi": "Hà Nội",
+    "TP Ho Chi Minh": "TP. Hồ Chí Minh",
+    "Ho Chi Minh": "TP. Hồ Chí Minh",
+    "Da Nang": "Đà Nẵng",
+    "Hai Phong": "Hải Phòng",
+    "Can Tho": "Cần Thơ",
+    "Hue": "Thành phố Huế",
+    # TP trực thuộc TW giữ nguyên / viết lại
+    "Hà Nội": "Hà Nội",
+    "TP. Hồ Chí Minh": "TP. Hồ Chí Minh",
+    "Hồ Chí Minh": "TP. Hồ Chí Minh",
+    "TP.HCM": "TP. Hồ Chí Minh",
+    "TPHCM": "TP. Hồ Chí Minh",
+    "Tp.HCM": "TP. Hồ Chí Minh",
+    "Hải Phòng": "Hải Phòng",
+    "TP. Hải Phòng": "Hải Phòng",
+    "Đà Nẵng": "Đà Nẵng",
+    "TP. Đà Nẵng": "Đà Nẵng",
+    "Thành phố Huế": "Thành phố Huế",
+    "Huế": "Thành phố Huế",
+    "TT. Huế": "Thành phố Huế",
+    "Thừa Thiên Huế": "Thành phố Huế",
+    "Thừa Thiên - Huế": "Thành phố Huế",
+    "Cần Thơ": "Cần Thơ",
+    "TP. Cần Thơ": "Cần Thơ",
+    # Tỉnh giữ nguyên
+    "Cao Bằng": "Cao Bằng",
+    "Lai Châu": "Lai Châu",
+    "Điện Biên": "Điện Biên",
+    "Lạng Sơn": "Lạng Sơn",
+    "Sơn La": "Sơn La",
+    "Quảng Ninh": "Quảng Ninh",
+    "Thanh Hóa": "Thanh Hóa",
+    "Nghệ An": "Nghệ An",
+    "Hà Tĩnh": "Hà Tĩnh",
+    # Tỉnh đã sáp nhập
+    "Hà Giang": "Tuyên Quang",
+    "Tuyên Quang": "Tuyên Quang",
+    "Lào Cai": "Lào Cai",
+    "Yên Bái": "Lào Cai",
+    "Bắc Kạn": "Thái Nguyên",
+    "Thái Nguyên": "Thái Nguyên",
+    "Hòa Bình": "Phú Thọ",
+    "Vĩnh Phúc": "Phú Thọ",
+    "Phú Thọ": "Phú Thọ",
+    "Bắc Giang": "Bắc Ninh",
+    "Bắc Ninh": "Bắc Ninh",
+    "Hải Dương": "Hải Phòng",
+    "Thái Bình": "Hưng Yên",
+    "Hưng Yên": "Hưng Yên",
+    "Hà Nam": "Ninh Bình",
+    "Nam Định": "Ninh Bình",
+    "Ninh Bình": "Ninh Bình",
+    "Quảng Bình": "Quảng Trị",
+    "Quảng Trị": "Quảng Trị",
+    "Quảng Nam": "Đà Nẵng",
+    "Kon Tum": "Quảng Ngãi",
+    "Quảng Ngãi": "Quảng Ngãi",
+    "Bình Định": "Gia Lai",
+    "Gia Lai": "Gia Lai",
+    "Phú Yên": "Đắk Lắk",
+    "Đắk Lắk": "Đắk Lắk",
+    "Khánh Hòa": "Khánh Hòa",
+    "Ninh Thuận": "Khánh Hòa",
+    "Đắk Nông": "Lâm Đồng",
+    "Lâm Đồng": "Lâm Đồng",
+    "Bình Thuận": "Lâm Đồng",
+    "Bình Phước": "Đồng Nai",
+    "Đồng Nai": "Đồng Nai",
+    "Bà Rịa - Vũng Tàu": "TP. Hồ Chí Minh",
+    "Bà Rịa-Vũng Tàu": "TP. Hồ Chí Minh",
+    "BR-VT": "TP. Hồ Chí Minh",
+    "Bình Dương": "TP. Hồ Chí Minh",
+    "Long An": "Tây Ninh",
+    "Tây Ninh": "Tây Ninh",
+    "Tiền Giang": "Đồng Tháp",
+    "Đồng Tháp": "Đồng Tháp",
+    "An Giang": "An Giang",
+    "Kiên Giang": "An Giang",
+    "Bến Tre": "Vĩnh Long",
+    "Vĩnh Long": "Vĩnh Long",
+    "Trà Vinh": "Vĩnh Long",
+    "Sóc Trăng": "Cần Thơ",
+    "Hậu Giang": "Cần Thơ",
+    "Bạc Liêu": "Cà Mau",
+    "Cà Mau": "Cà Mau",
+}
+
+
+def normalize_province(raw: str) -> str:
+    """Chuẩn hoá tên tỉnh/thành → tên mới theo địa giới 2025."""
+    s = (raw or "").strip()
+    if s in PROVINCE_NORMALIZE:
+        return PROVINCE_NORMALIZE[s]
+    for k, v in PROVINCE_NORMALIZE.items():
+        if k.lower() == s.lower():
+            return v
+    for k, v in PROVINCE_NORMALIZE.items():
+        if k.lower() in s.lower() or s.lower() in k.lower():
+            return v
+    return s
+
+
+def sync_webapp(projects: list) -> None:
+    """Đồng bộ danh sách dự án đã chuẩn hoá sang web-app/public/data.json."""
+    try:
+        path = WEBAPP_DATA.resolve()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"projects": projects, "updated": datetime.now().isoformat()}
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        log.info(f"Đồng bộ web-app OK: {path} ({len(projects)} dự án)")
+    except Exception as e:
+        log.warning(f"Không sync được web-app data: {e}")
+
+
+# ─── Geocoding ─────────────────────────────────────────────────────────────────
+
+PROVINCE_CAPITALS: dict[str, tuple[float, float]] = {
+    "Hà Nội": (21.0285, 105.8542),
+    "Hải Phòng": (20.8449, 106.6881),
+    "Bắc Ninh": (21.1861, 106.0763),
+    "Hưng Yên": (20.6464, 106.0511),
+    "Quảng Ninh": (21.0064, 107.2925),
+    "Phú Thọ": (21.3450, 105.2230),
+    "Thái Nguyên": (21.5928, 105.8442),
+    "Lào Cai": (22.4809, 103.9754),
+    "Sơn La": (21.3272, 103.9144),
+    "Tuyên Quang": (21.8239, 105.2180),
+    "Lạng Sơn": (21.8537, 106.7615),
+    "Cao Bằng": (22.6657, 106.2639),
+    "Lai Châu": (22.3964, 103.4580),
+    "Điện Biên": (21.3860, 103.0230),
+    "Ninh Bình": (20.2541, 105.9765),
+    "Thanh Hóa": (19.8067, 105.7852),
+    "Nghệ An": (18.6796, 105.6813),
+    "Hà Tĩnh": (18.3428, 105.9057),
+    "Quảng Trị": (16.7403, 107.1857),
+    "Thành phố Huế": (16.4637, 107.5909),
+    "Đà Nẵng": (16.0544, 108.2022),
+    "Quảng Ngãi": (15.1200, 108.7922),
+    "Gia Lai": (13.9833, 108.0000),
+    "Đắk Lắk": (12.6667, 108.0500),
+    "Khánh Hòa": (12.2388, 109.1967),
+    "Lâm Đồng": (11.9465, 108.4419),
+    "TP. Hồ Chí Minh": (10.8231, 106.6297),
+    "Đồng Nai": (10.9455, 107.1684),
+    "Tây Ninh": (11.3352, 106.1099),
+    "Đồng Tháp": (10.4937, 105.6882),
+    "An Giang": (10.5216, 105.1259),
+    "Vĩnh Long": (10.2538, 106.0000),
+    "Cần Thơ": (10.0452, 105.7469),
+    "Cà Mau": (9.1769, 105.1500),
+}
+
+
+def geocode_projects(projects: list) -> bool:
+    """Geocode các dự án còn thiếu tọa độ bằng Nominatim OSM.
+    Mutates projects in-place. Returns True nếu có ít nhất 1 dự án được geocode.
+    """
+    import urllib.request
+    import urllib.parse
+
+    needs_geocode = [
+        p for p in projects
+        if not p.get("toado_lat") or p.get("toado_lat") == 0
+    ]
+    if not needs_geocode:
+        log.info("Geocoding: tất cả dự án đã có tọa độ")
+        return False
+
+    log.info(f"Geocoding: {len(needs_geocode)} dự án cần tọa độ")
+    geocoded_count = 0
+    headers = {"User-Agent": "NOXH-Monitor/1.0 (noxh-monitor)"}
+
+    def nominatim_search(query: str) -> tuple[float, float] | None:
+        params = urllib.parse.urlencode({
+            "q": query, "format": "json", "limit": "1", "countrycodes": "vn",
+        })
+        url = f"https://nominatim.openstreetmap.org/search?{params}"
+        req = urllib.request.Request(url, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read())
+            if data:
+                return float(data[0]["lat"]), float(data[0]["lon"])
+        except Exception as e:
+            log.debug(f"Nominatim lỗi '{query}': {e}")
+        return None
+
+    for p in needs_geocode:
+        tinh = p.get("tinh_tp", "")
+        vi_tri = p.get("vi_tri", "")
+        quan_huyen = p.get("quan_huyen", "")
+        result: tuple[float, float] | None = None
+
+        # Tier 1: địa chỉ đầy đủ
+        if vi_tri and tinh:
+            result = nominatim_search(f"{vi_tri}, {tinh}, Việt Nam")
+            time.sleep(1.2)
+
+        # Tier 2: quận/huyện + tỉnh
+        if not result and quan_huyen and tinh:
+            result = nominatim_search(f"{quan_huyen}, {tinh}, Việt Nam")
+            time.sleep(1.2)
+
+        # Tier 3: tọa độ tỉnh lỵ (fallback)
+        if not result and tinh in PROVINCE_CAPITALS:
+            result = PROVINCE_CAPITALS[tinh]
+            log.debug(f"Dùng tọa độ tỉnh lỵ cho: {p.get('ten_du_an')}")
+
+        if result:
+            p["toado_lat"], p["toado_lng"] = result[0], result[1]
+            geocoded_count += 1
+            log.info(f"  ✓ {p.get('ten_du_an', '?')[:40]} → {result[0]:.4f}, {result[1]:.4f}")
+        else:
+            log.warning(f"  ✗ Không tìm được tọa độ: {p.get('ten_du_an', '?')[:40]}")
+
+    log.info(f"Geocoding xong: {geocoded_count}/{len(needs_geocode)} thành công")
+    return geocoded_count > 0
+
 
 # ─── Danh sách query chuyên sâu ───────────────────────────────────────────────
 # Mỗi query tập trung vào 1 góc độ khác nhau để bao phủ tối đa
@@ -143,6 +382,9 @@ JSON_SCHEMA = """[
     "doi_tuong_uu_tien": "",
     "dia_diem_nop_ho_so": "",
     "website_chu_dau_tu": "",
+    "quy_mo_dan_so": "",
+    "lien_he": "",
+    "anh_phoi_canh": "",
     "trang_thai": "Đang nhận HS / Sắp nhận HS / Vừa khởi công / Đang thi công / Pipeline 2026-2030",
     "nguon": "Tên báo/website + ngày đăng",
     "url_nguon": "",
@@ -166,11 +408,20 @@ def load_db():
         try:
             return json.loads(DB_FILE.read_text("utf-8"))
         except Exception:
-            pass
+            bak = DB_FILE.with_suffix(".json.bak")
+            if bak.exists():
+                try:
+                    log.warning("projects.json bị lỗi, thử load từ backup...")
+                    return json.loads(bak.read_text("utf-8"))
+                except Exception:
+                    pass
+            log.error("Không load được DB và backup, khởi tạo mới (dữ liệu cũ đã corrupt)")
     return {"projects": [], "scans": [], "updated": ""}
 
 def save_db(db):
     db["updated"] = datetime.now().isoformat()
+    if DB_FILE.exists():
+        shutil.copy2(DB_FILE, DB_FILE.with_suffix(".json.bak"))
     DB_FILE.write_text(json.dumps(db, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def parse_json(text):
@@ -204,6 +455,48 @@ def merge(existing, new_list):
     return existing + truly_new, truly_new, updated
 
 # ─── Single query runner ──────────────────────────────────────────────────────
+def gemini_fallback(prompt_text: str) -> list[dict]:
+    """Fallback sang Gemini 2.0 Flash với Google Search Grounding khi Claude thất bại."""
+    api_key = cfg("GEMINI_API_KEY")
+    if not api_key:
+        log.warning("  Gemini fallback: thiếu GEMINI_API_KEY trong .env")
+        return []
+    try:
+        from google import genai as ggenai
+        from google.genai import types as gtypes
+    except ImportError:
+        log.warning("  Gemini fallback: chưa cài thư viện (pip install google-genai)")
+        return []
+    try:
+        client = ggenai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt_text,
+            config=gtypes.GenerateContentConfig(
+                tools=[gtypes.Tool(google_search=gtypes.GoogleSearch())],
+            ),
+        )
+        full = response.text or ""
+        log.info(f"  Gemini fallback response: {len(full)} ký tự")
+        for pat in [r'\[\s*\{[\s\S]*?\}\s*\]', r'\[\s*\]']:
+            m = re.search(pat, full)
+            if m:
+                try:
+                    data = json.loads(m.group())
+                    for p in data:
+                        if p.get("tinh_tp"):
+                            p["tinh_tp"] = normalize_province(p["tinh_tp"])
+                    log.info(f"  Gemini fallback OK: {len(data)} dự án")
+                    return data
+                except Exception:
+                    pass
+        log.warning("  Gemini fallback: không parse được JSON")
+        return []
+    except Exception as e:
+        log.error(f"  Gemini fallback lỗi: {e}")
+        return []
+
+
 def run_query(client, query_config, delay=3):
     qid   = query_config["id"]
     desc  = query_config["desc"]
@@ -226,6 +519,9 @@ def run_query(client, query_config, delay=3):
         )
         full = "".join(b.text for b in msg.content if b.type == "text")
         results = parse_json(full)
+        for p in results:
+            if p.get("tinh_tp"):
+                p["tinh_tp"] = normalize_province(p["tinh_tp"])
         log.info(f"  [{qid}] → {len(results)} dự án")
         return results
     except Exception as e:
@@ -242,13 +538,16 @@ def run_query(client, query_config, delay=3):
                 )
                 full = "".join(b.text for b in msg.content if b.type == "text")
                 results = parse_json(full)
+                for p in results:
+                    if p.get("tinh_tp"):
+                        p["tinh_tp"] = normalize_province(p["tinh_tp"])
                 log.info(f"  [{qid}] Retry OK → {len(results)} DA")
                 return results
             except Exception as e2:
-                log.error(f"  [{qid}] Retry thất bại: {e2}")
-                return []
-        log.error(f"  [{qid}] LỖI: {e}")
-        return []
+                log.error(f"  [{qid}] Claude retry thất bại → Gemini fallback: {e2}")
+                return gemini_fallback(prompt_text)
+        log.error(f"  [{qid}] Claude lỗi → Gemini fallback: {e}")
+        return gemini_fallback(prompt_text)
 
 # ─── Build summary report ─────────────────────────────────────────────────────
 NAV, GOLD, GRN = "#0B2545", "#C9932A", "#1A6B3A"
@@ -270,18 +569,24 @@ def build_report(all_ps, scan_log, ts):
     rows = ""
     for i,p in enumerate(all_ps):
         bg = "#fff" if i%2==0 else "#f8f9fa"
-        hs = f"{p.get('nhan_ho_so_tu','')} → {p.get('nhan_ho_so_den','')}" if p.get('nhan_ho_so_tu') and p.get('nhan_ho_so_den') else p.get('nhan_ho_so_tu') or p.get('khoi_cong') or "—"
-        sl = f'<a href="{p["url_nguon"]}" target="_blank" style="color:{GOLD}">{p.get("nguon","")[:50]}</a>' if p.get("url_nguon") else p.get("nguon","—")[:50]
+        if p.get('nhan_ho_so_tu') and p.get('nhan_ho_so_den'):
+            hs = h(p['nhan_ho_so_tu']) + " → " + h(p['nhan_ho_so_den'])
+        else:
+            hs = h(p.get('nhan_ho_so_tu') or p.get('khoi_cong') or "—")
+        url = safe_url(p.get("url_nguon", ""))
+        nguon_text = h(p.get("nguon","—"))[:50]
+        sl = f'<a href="{url}" target="_blank" rel="noopener noreferrer" style="color:{GOLD}">{nguon_text}</a>' if url else nguon_text
+        ten_tm_html = f'<br><small style="font-weight:400;color:#9aa0a6">{h(p["ten_thuong_mai"])}</small>' if p.get('ten_thuong_mai') else ''
         rows += f"""<tr style="background:{bg};border-bottom:1px solid #e8eaed">
           <td style="padding:7px 9px;color:#9aa0a6;font-size:11px;text-align:center">{i+1}</td>
-          <td style="padding:7px 9px">{badge(p.get('tinh_tp','—'),'navy')}</td>
-          <td style="padding:7px 9px;font-weight:600;color:{NAV};font-size:12px;max-width:220px;line-height:1.35">{p.get('ten_du_an','—')}{'<br><small style="font-weight:400;color:#9aa0a6">'+p['ten_thuong_mai']+'</small>' if p.get('ten_thuong_mai') else ''}</td>
-          <td style="padding:7px 9px;font-size:11px;color:#5f6368">{p.get('quan_huyen','—')}</td>
-          <td style="padding:7px 9px;font-size:11px;color:#5f6368;max-width:150px">{p.get('chu_dau_tu','—')}</td>
-          <td style="padding:7px 9px;font-size:11px;text-align:center">{p.get('tong_can','—')}</td>
-          <td style="padding:7px 9px;font-size:11px;font-weight:600;color:{GOLD};text-align:center">{p.get('gia_ban_m2','—')}</td>
+          <td style="padding:7px 9px">{badge(h(p.get('tinh_tp','—')),'navy')}</td>
+          <td style="padding:7px 9px;font-weight:600;color:{NAV};font-size:12px;max-width:220px;line-height:1.35">{h(p.get('ten_du_an','—'))}{ten_tm_html}</td>
+          <td style="padding:7px 9px;font-size:11px;color:#5f6368">{h(p.get('quan_huyen','—'))}</td>
+          <td style="padding:7px 9px;font-size:11px;color:#5f6368;max-width:150px">{h(p.get('chu_dau_tu','—'))}</td>
+          <td style="padding:7px 9px;font-size:11px;text-align:center">{h(p.get('tong_can','—'))}</td>
+          <td style="padding:7px 9px;font-size:11px;font-weight:600;color:{GOLD};text-align:center">{h(p.get('gia_ban_m2','—'))}</td>
           <td style="padding:7px 9px;font-size:11px;color:#5f6368;white-space:nowrap">{hs}</td>
-          <td style="padding:7px 9px">{badge(p.get('trang_thai','—'),sc(p.get('trang_thai','')))}</td>
+          <td style="padding:7px 9px">{badge(h(p.get('trang_thai','—')),sc(p.get('trang_thai','')))}</td>
           <td style="padding:7px 9px;font-size:10px;color:#9aa0a6">{sl}</td>
         </tr>"""
 
@@ -399,6 +704,12 @@ def main():
     })
     db["scans"] = db["scans"][-100:]
     save_db(db)
+
+    # Geocoding tự động cho các dự án thiếu tọa độ
+    if geocode_projects(merged):
+        save_db(db)
+
+    sync_webapp(merged)
 
     log.info(f"\nKẾT QUẢ CUỐI:")
     log.info(f"  Tổng bản ghi thu thập : {len(all_collected)}")
