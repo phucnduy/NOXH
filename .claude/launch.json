@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "web-app",
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": ["-c", "cd /Users/nguyenduyphuc/Downloads/Antigravity/web-app && npm run dev"],
+      "port": 3000
+    },
+    {
       "name": "docs-preview",
       "runtimeExecutable": "/bin/bash",
       "runtimeArgs": ["-c", "cd /tmp && python3 -m http.server 8080 --directory /Users/nguyenduyphuc/Downloads/Antigravity/.claude/worktrees/mystifying-brown/docs"],
